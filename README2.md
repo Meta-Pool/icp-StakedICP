@@ -23,4 +23,11 @@ dfx canister call deposits listWithdrawals '(principal "hpikg-6exdt-jn33w-ndty3-
 
 dfx canister call deposits completeWithdrawal '(principal "hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe", 1_399_970_000, principal "a63dq-6k6fh-xc2im-ahqkq-thu3y-ai27f-rgh2u-s5xxy-yohon-te4ur-nqe")'
 completeWithdrawal(user: Principal, amount: Nat64, to: Text)
+
+
+dfx canister --network=ic id deposits
+
+dfx canister call metrics http_request '(record {})'
+
+https://metrics:GdwSHhcZQFZ3AxdJZrTgPBwR@h6uvl-xiaaa-aaaap-qaawa-cai.raw.ic0.app/metrics
 ```
