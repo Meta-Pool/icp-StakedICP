@@ -30,4 +30,9 @@ dfx canister --network=ic id deposits
 dfx canister call metrics http_request '(record {})'
 
 https://metrics:GdwSHhcZQFZ3AxdJZrTgPBwR@h6uvl-xiaaa-aaaap-qaawa-cai.raw.ic0.app/metrics
+
+
+
+
+dfx canister call deposits metrics --ic
 ```
