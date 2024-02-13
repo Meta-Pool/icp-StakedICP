@@ -35,4 +35,10 @@ https://metrics:GdwSHhcZQFZ3AxdJZrTgPBwR@h6uvl-xiaaa-aaaap-qaawa-cai.raw.ic0.app
 
 
 dfx canister call deposits metrics --ic
+dfx canister call deposits addOwner '(principal "u6b6i-yhv3z-i52d6-w2gny-u2itc-zbwdz-5jnif-con6o-xnj46-w2ow5-kqe")' --ic 
+
+
+
+### IMPORTANT 
+./scripts/deploy.sh ic upgrade deposits
 ```

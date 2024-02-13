@@ -18,6 +18,10 @@ module {
             TrieSet.mem(owners, candidate, Principal.hash(candidate), Principal.equal)
         };
 
+        public func get_all() : [Principal] {
+            return TrieSet.toArray(owners);
+        };
+
         // Assert that the candidate must be an owner
         public func require(candidate : Principal) {
             assert(is(candidate));
