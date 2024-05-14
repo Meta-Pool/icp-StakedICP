@@ -157,6 +157,10 @@ shared(init_msg) actor class Deposits(args: {
         owners.remove(msg.caller, candidate);
     };
 
+    public query func get_all_owners() : async [Principal] {
+        return owners.get_all();
+    };
+
     // ===== GETTER/SETTER FUNCTIONS =====
 
     public shared(msg) func setToken(_token: Principal) {

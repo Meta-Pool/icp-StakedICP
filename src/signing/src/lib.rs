@@ -2,21 +2,13 @@ use ic_cdk::{
     api::{
         self,
         management_canister::ecdsa::{
-            EcdsaCurve,
-            EcdsaKeyId,
-            ecdsa_public_key,
-            EcdsaPublicKeyArgument,
-            EcdsaPublicKeyResponse,
-            SignWithEcdsaArgument,
-            SignWithEcdsaResponse,
+            ecdsa_public_key, EcdsaCurve, EcdsaKeyId, EcdsaPublicKeyArgument, EcdsaPublicKeyResponse, SignWithEcdsaArgument, SignWithEcdsaResponse
         },
-    },
-    export::{
+    }, export::{
         candid::CandidType,
         serde::{Deserialize, Serialize},
         Principal,
-    },
-    init, post_upgrade, pre_upgrade, storage, update,
+    }, init, post_upgrade, pre_upgrade, query, storage, update
 };
 use ic_ledger_types::{AccountIdentifier, Subaccount, DEFAULT_SUBACCOUNT};
 use std::cell::RefCell;
@@ -115,6 +107,29 @@ fn is_owner(user: &Principal) -> bool {
 
 fn require_owner(user: &Principal) {
     assert!(is_owner(user), "Caller is not an owner");
+}
+
+#[query]
+async fn get_all_owners() -> Vec<Principal> {
+    OWNERS.with(|owners| owners.borrow().clone())
+}
+
+#[update]
+async fn add_owner(owner: Principal) {
+    require_owner(&api::caller());
+    OWNERS.with(|owners| {
+        let mut o = owners.borrow_mut();
+        o.push(owner);
+    });
+}
+
+#[update]
+async fn remove_owner(owner: Principal) {
+    require_owner(&api::caller());
+    OWNERS.with(|owners| {
+        let mut o = owners.borrow_mut();
+        o.retain(|p| p != &owner);
+    });
 }
 
 #[update]
