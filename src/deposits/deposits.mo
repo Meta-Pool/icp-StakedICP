@@ -162,6 +162,7 @@ shared(init_msg) actor class Deposits(args: {
     };
 
     public shared(msg) func withdrawProtocolFees(user: Principal) : async TxReceipt {
+        owners.require(msg.caller);
         // Calculate target subaccount
         let root = {owner = Principal.fromActor(this); subaccount = null};
         let receiver = {owner = user; subaccount = null};
