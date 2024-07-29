@@ -161,6 +161,21 @@ shared(init_msg) actor class Deposits(args: {
         return owners.get_all();
     };
 
+    public shared(msg) func withdrawProtocolFees(user: Principal) : async TxReceipt {
+        // Calculate target subaccount
+        let root = {owner = Principal.fromActor(this); subaccount = null};
+        let receiver = {owner = user; subaccount = null};
+        let tokenFee = await token.icrc1_fee();
+
+        let amount = await token.icrc1_balance_of(root);
+        if (amount <= tokenFee) {
+            return #Err(#InsufficientBalance)
+        };
+
+        let result = await token.transfer(user, amount - tokenFee);
+        result
+    };
+
     // ===== GETTER/SETTER FUNCTIONS =====
 
     public shared(msg) func setToken(_token: Principal) {

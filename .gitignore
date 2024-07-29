@@ -20,6 +20,7 @@ _out
 node_modules/
 dist/
 src/declarations/
+src/declarations.tar
 
 # rust stuff
 target/
