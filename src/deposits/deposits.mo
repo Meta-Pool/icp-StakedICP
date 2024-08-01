@@ -144,6 +144,11 @@ shared(init_msg) actor class Deposits(args: {
     private stable var cachedLedgerBalanceE8s : Nat64 = 0;
     private stable var cachedTokenTotalSupply : Nat64 = 0;
 
+    /// Declining anonymous calls.
+    system func inspect({ caller : Principal }) : Bool {
+        not (Principal.isAnonymous(caller));
+    };
+
     // ===== OWNER FUNCTIONS =====
 
     private let owners = Owners.Owners(args.owners);
