@@ -932,7 +932,6 @@ shared(init_msg) actor class Deposits(args: {
     };
 
     public shared(msg) func neuronAccountId(controller: Principal, nonce: Nat64): async Text {
-        owners.require(msg.caller);
         return NNS.accountIdToText(Util.neuronAccountId(args.governance, controller, nonce));
     };
 
