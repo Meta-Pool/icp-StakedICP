@@ -100,7 +100,7 @@ shared(init_msg) actor class Deposits(args: {
 
     // Cost to transfer ICP on the ledger
     let icpFee: Nat = 10_000;
-    let minimumDeposit: Nat = icpFee*10;
+    let minimumDeposit: Nat = icpFee*1000;
 
     // Makes date math simpler
     let second : Int = 1_000_000_000;
@@ -404,6 +404,7 @@ shared(init_msg) actor class Deposits(args: {
 
     // Get a user's current referral stats. Used for the "Rewards" page.
     public shared(msg) func getReferralStats(): async ReferralStats {
+        /// Only the owner can get the referralStats. blockApex02
         owners.require(msg.caller);
         let code = await referralTracker.getCode(msg.caller);
         let stats = referralTracker.getStats(msg.caller);
@@ -752,6 +753,7 @@ shared(init_msg) actor class Deposits(args: {
     // amount of tokens, locking them while the withdrawal is pending.
     public shared(msg) func createWithdrawal(user: Account.Account, amount: Nat64) : async Result.Result<Withdrawals.Withdrawal, Withdrawals.WithdrawalsError> {
         assert(msg.caller == user.owner);
+        assert(amount >= 1_0000_0000); // min amount to withdraw is 1 ICP.
 
         // Calculate how much icp to pay out
         let (stIcp64, totalIcp64) = _exchangeRate();
