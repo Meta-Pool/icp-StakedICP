@@ -241,15 +241,6 @@ shared(init_msg) actor class Deposits(args: {
         await daily.flushPendingDeposits(Time.now(), refreshAvailableBalance)
     };
 
-    public shared(msg) func proposalNeuron(): async ?Neurons.Neuron {
-        null
-    };
-
-    public shared(msg) func setProposalNeuron(id: Nat64): async Neurons.NeuronResult {
-        owners.require(msg.caller);
-        #err(#Other("Proposal neuron is deprecated."))
-    };
-
     private var _aprOverride : ?Nat64 = null;
 
     public shared(msg) func setAprOverride(microbips: ?Nat64) : async () {
