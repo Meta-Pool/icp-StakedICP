@@ -42,3 +42,23 @@ dfx canister call deposits addOwner '(principal "u6b6i-yhv3z-i52d6-w2gny-u2itc-z
 ### IMPORTANT 
 ./scripts/deploy.sh ic upgrade deposits
 ```
+
+## Journey to address the audit
+
+### 1 Loss of Protocol Funds (StIcp) Due to Inability to Withdraw Remaining Amounts.
+
+Getting the balance of stICP in the `deposits` canister.
+
+```sh
+$ dfx canister id deposits --ic
+hnwvc-lyaaa-aaaal-aaf6q-cai
+
+$ dfx canister call token balanceOf '(principal "hnwvc-lyaaa-aaaal-aaf6q-cai")' --ic
+(5_346_066_490 : nat)
+```
+
+Withdraw protocol fees.
+
+```sh
+dfx canister call deposits withdrawProtocolFees '(principal "jceob-d4lsq-myex3-3frau-dc5y7-j3cnb-7mawc-4oluq-f24hc-4u56p-5ae")' --ic
+```
