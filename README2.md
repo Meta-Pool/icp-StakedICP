@@ -2,6 +2,7 @@
 dfx ledger balance --network ic
 
 dfx canister call token balanceOf '(principal "hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe")'
+dfx canister call token balanceOf '(principal "zhfn3-haobh-mejz2-otnmz-sa6wp-6ya5h-qatef-zy2i4-ec736-7jqu5-pqe")'
 
 dfx canister call deposits exchangeRate
 
@@ -62,3 +63,11 @@ Withdraw protocol fees.
 ```sh
 dfx canister call deposits withdrawProtocolFees '(principal "jceob-d4lsq-myex3-3frau-dc5y7-j3cnb-7mawc-4oluq-f24hc-4u56p-5ae")' --ic
 ```
+
+```sh
+dfx canister call nns-governance list_known_neurons '()' --ic
+dfx canister call nns-governance list_neurons '()' --ic
+```
+
+
+./deploy.sh ic deposits
