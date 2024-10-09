@@ -54,7 +54,11 @@ Getting the balance of stICP in the `deposits` canister.
 $ dfx canister id deposits --ic
 hnwvc-lyaaa-aaaal-aaf6q-cai
 
+# Candid UI
+https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app/?id=hnwvc-lyaaa-aaaal-aaf6q-cai
+
 $ dfx canister call token balanceOf '(principal "hnwvc-lyaaa-aaaal-aaf6q-cai")' --ic
+zhfn3-haobh-mejz2-otnmz-sa6wp-6ya5h-qatef-zy2i4-ec736-7jqu5-pqe
 (5_346_066_490 : nat)
 ```
 
@@ -67,6 +71,12 @@ dfx canister call deposits withdrawProtocolFees '(principal "jceob-d4lsq-myex3-3
 ```sh
 dfx canister call nns-governance list_known_neurons '()' --ic
 dfx canister call nns-governance list_neurons '()' --ic
+
+
+///// IDENTITY
+
+dfx canister info deposits --ic
+ls ~/.config/dfx/identity
 ```
 
 
