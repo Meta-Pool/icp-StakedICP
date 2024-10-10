@@ -169,7 +169,7 @@ async fn sign(message: Vec<u8>) -> Result<SignatureReply, String> {
             derivation_path: derivation_path(),
             key_id: key_id(),
         },),
-        25_000_000_000,
+        26_153_846_153,
     )
     .await
     .map_err(|e| format!("Failed to call sign_with_ecdsa {}", e.1))?;

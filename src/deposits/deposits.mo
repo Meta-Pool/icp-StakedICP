@@ -415,26 +415,26 @@ shared(init_msg) actor class Deposits(args: {
 
     // Return the account ID specific to this user's subaccount. This is the
     // address where the user should transfer their deposit ICP.
-    public shared(msg) func getDepositAddress(code: ?Text): async Text {
-        Debug.print("[Referrals.touch] user: " # debug_show(msg.caller) # ", code: " # debug_show(code));
+    public shared query(msg) func getDepositAddress(code: ?Text): async Text {
+        // Debug.print("[Referrals.touch] user: " # debug_show(msg.caller) # ", code: " # debug_show(code));
         // referralTracker.touch(msg.caller, code, null); // Workaround to reduce deposit waiting times.
         NNS.accountIdToText(NNS.accountIdFromPrincipal(Principal.fromActor(this), NNS.principalToSubaccount(msg.caller)));
     };
 
     // Same as getDepositAddress, but allows the canister owner to find it for
     // a specific user.
-    public shared(msg) func getDepositAddressFor(user: Principal): async Text {
+    public shared query(msg) func getDepositAddressFor(user: Principal): async Text {
         owners.require(msg.caller);
         NNS.accountIdToText(NNS.accountIdFromPrincipal(Principal.fromActor(this), NNS.principalToSubaccount(user)));
     };
 
-    public shared(msg) func getDepositSubaccount(code: ?Text): async Blob {
-        Debug.print("[Referrals.touch] user: " # debug_show(msg.caller) # ", code: " # debug_show(code));
+    public shared query(msg) func getDepositSubaccount(code: ?Text): async Blob {
+        // Debug.print("[Referrals.touch] user: " # debug_show(msg.caller) # ", code: " # debug_show(code));
         // referralTracker.touch(msg.caller, code, null); // Workaround to reduce deposit waiting times.
         NNS.principalToSubaccount(msg.caller);
     };
 
-    public shared(msg) func getDepositSubaccountFor(user: Principal): async Blob {
+    public shared query(msg) func getDepositSubaccountFor(user: Principal): async Blob {
         owners.require(msg.caller);
         NNS.principalToSubaccount(user);
     };
@@ -469,6 +469,8 @@ shared(init_msg) actor class Deposits(args: {
 
         // Check ledger for value
         let balance = await ledger.account_balance({ account = Blob.toArray(sourceAccount) });
+
+        Debug.print("[doDepositIcpFor] user: " # debug_show(user) # ", Balance: " # debug_show(balance));
 
         // Cache the exchange rate before we do the transfer, so the transfer
         // doesn't impact the result.
