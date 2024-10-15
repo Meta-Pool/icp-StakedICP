@@ -367,6 +367,11 @@ shared(init_msg) actor class Deposits(args: {
         pendingMintE8s
     };
 
+    // Internet Identity.
+    public shared (msg) func whoami() : async Principal {
+        msg.caller
+    };
+
     // ===== NEURON DISBURSAL FUNCTIONS =====
 
     // List all neurons ready for disbursal. We will disburse them into the
@@ -432,6 +437,14 @@ shared(init_msg) actor class Deposits(args: {
         // Debug.print("[Referrals.touch] user: " # debug_show(msg.caller) # ", code: " # debug_show(code));
         // referralTracker.touch(msg.caller, code, null); // Workaround to reduce deposit waiting times.
         NNS.principalToSubaccount(msg.caller);
+    };
+
+    public shared query func getDepositSubaccount2(user: Principal): async Blob {
+        return NNS.principalToSubaccount(user);
+    };
+
+    public shared query(msg) func getDepositSubaccount3(): async Blob {
+        return NNS.principalToSubaccount(msg.caller);
     };
 
     public shared query(msg) func getDepositSubaccountFor(user: Principal): async Blob {
