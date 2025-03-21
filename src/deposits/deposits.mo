@@ -897,10 +897,11 @@ shared(init_msg) actor class Deposits(args: {
     };
 
     // List all withdrawals for a user.
-    public shared(msg) func listWithdrawals(user: Principal) : async [Withdrawals.Withdrawal] {
-        if (msg.caller != user) {
-            owners.require(msg.caller);
-        };
+    // public shared(msg) func listWithdrawals(user: Principal) : async [Withdrawals.Withdrawal] {
+    public func listWithdrawals(user: Principal) : async [Withdrawals.Withdrawal] {
+        // if (msg.caller != user) {
+        //     owners.require(msg.caller);
+        // };
         return withdrawals.withdrawalsFor(user);
     };
 

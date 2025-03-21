@@ -3,4 +3,4 @@
 	url = https://github.com/AegirFinance/DIP20.git
 [submodule "cmd/oracle"]
 	path = cmd/oracle
-	url = git@github.com:AegirFinance/oracle.git
+	url = git@github.com:Meta-Pool/icp-oracle.git
