@@ -1,6 +1,6 @@
-[submodule "src/DIP20"]
-	path = src/DIP20
-	url = https://github.com/AegirFinance/DIP20.git
 [submodule "cmd/oracle"]
 	path = cmd/oracle
 	url = https://github.com/Meta-Pool/icp-oracle.git
+[submodule "src/DIP20"]
+	path = src/DIP20
+	url = git@github.com:Meta-Pool/icp-DIP20.git
