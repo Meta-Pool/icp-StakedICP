@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "cmd/oracle",
+    # "cmd/oracle",
     "src/signing",
 ]
-default-members = ["cmd/oracle"]
+# default-members = ["cmd/oracle"]
 
 [profile.release]
 lto = true
