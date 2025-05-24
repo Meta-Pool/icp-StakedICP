@@ -20,6 +20,7 @@ import Result "mo:base/Result";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
 import TrieMap "mo:base/TrieMap";
+import Nat8 "mo:base/Nat8";
 
 import Daily        "./Daily";
 import ApplyInterest "./Daily/ApplyInterest";
@@ -426,6 +427,37 @@ shared(init_msg) actor class Deposits(args: {
         NNS.accountIdToText(NNS.accountIdFromPrincipal(Principal.fromActor(this), NNS.principalToSubaccount(msg.caller)));
     };
 
+    //////////////////////////////// for subaccount functions /////////////////////////////
+
+    private func accountToSubaccount(account: Account.Account): Blob {
+        let ownerToSubaccount = NNS.principalToSubaccount(account.owner);
+        switch(account.subaccount) {
+            case (null) { return ownerToSubaccount};
+            case (?subaccount) { 
+                let a1 = Blob.toArray(ownerToSubaccount);
+                let a2 = Blob.toArray(subaccount);
+                let combined = Array.tabulate<Nat8>(
+                    32,
+                    func(i) {
+                        Nat8.fromNat((Nat8.toNat(a1[i]) + Nat8.toNat(a2[i])) % 256)
+                    }
+                );
+                Blob.fromArray(combined)
+            };
+        }
+    };
+
+    public shared query(msg) func getDepositAddressForSubaccount(subaccount: ?Blob): async Text {
+        let userSubaccount = accountToSubaccount({ owner = msg.caller; subaccount});
+        NNS.accountIdToText(NNS.accountIdFromPrincipal(Principal.fromActor(this), userSubaccount));
+    };
+
+    public shared ({ caller }) func depositIcpForSubaccount(subaccount: Blob): async DepositReceipt{
+        await doDepositIcpFor(caller, ?subaccount);
+    };
+
+    ////////////////////////////////////////////////////////////////////////////////////
+
     // Same as getDepositAddress, but allows the canister owner to find it for
     // a specific user.
     public shared query(msg) func getDepositAddressFor(user: Principal): async Text {
@@ -465,19 +497,20 @@ shared(init_msg) actor class Deposits(args: {
     // After the user transfers their ICP to their depositAddress, process the
     // deposit, be minting the tokens.
     public shared(msg) func depositIcp(): async DepositReceipt {
-        await doDepositIcpFor(msg.caller);
+        await doDepositIcpFor(msg.caller, null);
     };
 
     // After the user transfers their ICP to their depositAddress, process the
     // deposit, be minting the tokens.
     public shared(msg) func depositIcpFor(user: Principal): async DepositReceipt {
         owners.require(msg.caller);
-        await doDepositIcpFor(user)
+        await doDepositIcpFor(user, null)
     };
 
-    private func doDepositIcpFor(user: Principal): async DepositReceipt {
+    private func doDepositIcpFor(user: Principal, _subaccount: ?Blob): async DepositReceipt {
         // Calculate target subaccount
-        let subaccount = NNS.principalToSubaccount(user);
+        // let subaccount = NNS.principalToSubaccount(user);
+        let subaccount = accountToSubaccount({ owner = user; subaccount = _subaccount });
         let sourceAccount = NNS.accountIdFromPrincipal(Principal.fromActor(this), subaccount);
 
         // Check ledger for value
@@ -534,7 +567,7 @@ shared(init_msg) actor class Deposits(args: {
         // Mint the new tokens
         Debug.print("[Referrals.convert] user: " # debug_show(user));
         referralTracker.convert(user, ?now);
-        let userAccount = {owner=user; subaccount=null};
+        let userAccount = {owner=user; subaccount= ?subaccount};
         ignore queueMint(userAccount, toMintE8s);
         ignore flushMint(userAccount);
 
