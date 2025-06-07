@@ -14,6 +14,7 @@ import Result "mo:base/Result";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
 import TrieMap "mo:base/TrieMap";
+import Nat32 "mo:base/Nat32";
 
 import NNS "./NNS";
 import Neurons "./Neurons";
@@ -290,6 +291,191 @@ module {
 
             return withdrawal;
         };
+
+      ////// Support for subaccounts ///////////////
+
+        let nullBlob  : Blob = "\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00";
+
+        let ahash = (
+            func account_equal(a: Account, b: Account): Bool {
+                a.owner == b.owner and
+                (switch((a.subaccount, b.subaccount)) {
+                    case (null, null) { true };
+                    case(null, ?val){ not(nullBlob == val) };
+                    case(?val, null){ not(nullBlob == val) };
+                    case (?aSub, ?bSub) { Blob.equal(aSub, bSub)};
+                })
+            },
+            func account_hash(a: Account): Nat32 {
+                var accumulator = Principal.hash(a.owner);
+                switch(a.subaccount){
+                    case(null){ accumulator +%= Blob.hash(nullBlob) };
+                    case(?val){ accumulator +%= Blob.hash(val) };
+                };
+                return accumulator;
+            }
+        );
+
+        func accountToText(a: Account): Text {
+            Principal.toText(a.owner) # (
+                switch(a.subaccount){ 
+                    case  null  { "" };
+                    case ( ?sub ) {
+                        if (sub == nullBlob) { "" } else{
+                            Nat32.toText(Blob.hash(sub))
+                        }
+                    }
+                }
+            )    
+        };
+
+        private var withdrawals_account = TrieMap.TrieMap<Text, Withdrawal_Account>(Text.equal, Text.hash);
+        private var withdrawalsByUser_account = TrieMap.TrieMap<Account, Buffer.Buffer<Text>>(ahash);
+
+        type Account = {owner: Principal; subaccount: ?Blob};
+
+        public type Withdrawal_Account = {
+            id: Text;
+            account: Account;
+            createdAt: Time.Time;
+            expectedAt: Time.Time;
+            readyAt: ?Time.Time;
+            disbursedAt: ?Time.Time;
+            total: Nat64;
+            pending: Nat64;
+            available: Nat64;
+            disbursed: Nat64;
+        };
+
+        public func createWithdrawal_account(account: Account, amount: Nat64, delay: Int): Withdrawal_Account{
+            let now = Time.now();
+            let id = nextForAccountWithdrawalId(account);
+            let withdrawal_account: Withdrawal_Account = {
+                id = id;
+                account = account;
+                createdAt = now;
+                expectedAt = now + (delay * second);
+                readyAt = null;
+                disbursedAt = null;
+                total = amount;
+                pending = amount;
+                available = 0;
+                disbursed = 0;
+            };
+            withdrawals_account.put(id, withdrawal_account);
+            pendingWithdrawals := Deque.pushBack(pendingWithdrawals, {id = id; createdAt = now});
+            withdrawalsByAccountAdd(withdrawal_account.account, id);
+            return {withdrawal_account with account}
+        };
+
+        private func nextForAccountWithdrawalId(account: Account): Text {
+            let count = Option.get<Buffer.Buffer<Text>>(
+                withdrawalsByUser_account.get(account),
+                Buffer.Buffer<Text>(0)
+            ).size();
+            accountToText(account) # "-" # Nat.toText(count+1)
+        };
+
+        private func withdrawalsByAccountAdd(account: Account, id: Text) {
+            let buf = Option.get<Buffer.Buffer<Text>>(
+                withdrawalsByUser_account.get(account),
+                Buffer.Buffer<Text>(1)
+            );
+            buf.add(id);
+            withdrawalsByUser_account.put(account, buf);
+        };
+
+        public func withdrawalsFor_account(account: Account): [Withdrawal_Account] {
+            var sources = Buffer.Buffer<Withdrawal_Account>(0);
+            let ids = Option.get<Buffer.Buffer<Text>>(withdrawalsByUser_account.get(account), Buffer.Buffer<Text>(0));
+            for (id in ids.vals()) {
+                switch (withdrawals_account.get(id)) {
+                    case (null) { P.unreachable(); };
+                    case (?w) {
+                        sources.add(w);
+                    };
+                };
+            };
+            return sources.toArray();
+        };
+
+        public func completeWithdrawal_account(user: Account, amount: Nat64, to: NNS.AccountIdentifier): Result.Result<WithdrawalCompletion, WithdrawalsError> {
+            let now = Time.now();
+
+            // Figure out which available withdrawals we're disbursing
+            var remaining : Nat64 = amount;
+            var b = Buffer.Buffer<(Withdrawal_Account, Nat64)>(1);
+            for (w in withdrawalsFor_account(user).vals()) {
+                if (remaining > 0 and w.available > 0) {
+                    let applied = Nat64.min(w.available, remaining);
+                    b.add((w, applied));
+                    remaining -= applied;
+                };
+            };
+            // Check the user has enough available
+            if (remaining > 0) {
+                return #err(#InsufficientBalance);
+            };
+
+            // Update these withdrawal balances.
+            for ((w, applied) in b.vals()) {
+                let disbursedAt = if (w.disbursed + applied == w.total) {
+                    ?now
+                } else {
+                    null
+                };
+                withdrawals_account.put(w.id, {
+                        id = w.id;
+                        account = w.account;
+                        createdAt = w.createdAt;
+                        expectedAt = w.expectedAt;
+                        readyAt = w.readyAt;
+                        disbursedAt = disbursedAt;
+                        total = w.total;
+                        pending = w.pending;
+                        available = w.available - applied;
+                        disbursed = w.disbursed + applied;
+                        });
+            };
+
+            #ok({
+                transferArgs = {
+                    memo : Nat64    = 0;
+                    from_subaccount = null;
+                    to              = Blob.toArray(to);
+                    amount          = { e8s = amount - icpFee };
+                    fee             = { e8s = icpFee };
+                    created_at_time = ?{ timestamp_nanos = Nat64.fromNat(Int.abs(now)) };
+                };
+                failure = func() {
+                    // To be called if the transfer has failed.
+
+                    // Revert our changes, returning the withdrawal balance to
+                    // the user.
+                    for (({id}, applied) in b.vals()) {
+                        let w = switch (withdrawals_account.get(id)) {
+                            case (null) { P.unreachable() };
+                            case (?w) { w };
+                        };
+                        withdrawals_account.put(w.id, {
+                            id = w.id;
+                            account = w.account;
+                            createdAt = w.createdAt;
+                            expectedAt = w.expectedAt;
+                            readyAt = w.readyAt;
+                            disbursedAt = null;
+                            total = w.total;
+                            pending = w.pending;
+                            available = w.available + applied;
+                            disbursed = w.disbursed - applied;
+                        });
+                    };
+                };
+            })
+        };
+
+
+      ////////////////////////////////////////////////////////////////////
 
         private func nextWithdrawalId(user: Principal): Text {
             let count = Option.get<Buffer.Buffer<Text>>(

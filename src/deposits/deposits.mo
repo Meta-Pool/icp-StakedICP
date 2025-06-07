@@ -847,7 +847,14 @@ shared(init_msg) actor class Deposits(args: {
             return #err(#InsufficientLiquidity);
         };
 
-        return #ok(withdrawals.createWithdrawal(user.owner, toUnlockE8s, delay));
+        // return #ok(withdrawals.createWithdrawal(user.owner, toUnlockE8s, delay));
+        return #ok(
+            if(user.subaccount == null){
+                    withdrawals.createWithdrawal(user.owner, toUnlockE8s, delay)
+                } else {
+                    {withdrawals.createWithdrawal_account(user, toUnlockE8s, delay) with user = msg.caller}
+                }
+            )
     };
 
     // Complete withdrawal(s), transferring the ready amount to the
@@ -928,6 +935,95 @@ shared(init_msg) actor class Deposits(args: {
 
         result
     };
+
+  ///////////////// Complete Withdrawal for account ///////////////////////////
+
+    type Account = {owner: Principal; subaccount: ?Blob};
+
+    public shared(msg) func completeWithdrawal_account(account: Account, amount: Nat64, to: Text): async Withdrawals.PayoutResult {
+        let user = account.owner;
+        let subaccount = switch (account.subaccount) {
+            case null {NNS.defaultSubaccount()};
+            case (?subaccount) {subaccount};
+        };
+
+        if (msg.caller != user) {
+            owners.require(msg.caller);
+        };
+
+        // See if we got a valid address to send to.
+        //
+        // Try to parse text as an address or a principal. If a principal, return
+        // the default subaccount address for that principal.
+        let toAddress = switch (NNS.accountIdFromText(to)) {
+            case (#err(_)) {
+                // Try to parse as a principal
+                try {
+                    NNS.accountIdFromPrincipal(Principal.fromText(to), subaccount)
+                } catch (error) {
+                    return #err(#InvalidAddress);
+                };
+            };
+            case (#ok(toAddress)) {
+                if (NNS.validateAccountIdentifier(toAddress)) {
+                    toAddress
+                } else {
+                    return #err(#InvalidAddress);
+                }
+            };
+        };
+
+        // Check we think we have enough cash available to fulfill this.
+        // We can't use _availableBalance here, because it subtracts out the
+        // withdrawals.reservedICP, which is what we actually want to use for
+        // this fulfillment.
+        if (Nat64.min(cachedLedgerBalanceE8s, withdrawals.reservedIcp()) < amount + pendingTransfers.reservedIcp()) {
+            return #err(#InsufficientLiquidity);
+        };
+
+
+        // Mark withdrawals as complete, and the balances as "disbursed"
+        let {transferArgs; failure} = switch (withdrawals.completeWithdrawal(user, amount, toAddress)) {
+            case (#err(err)) { return #err(err); };
+            case (#ok(a)) { a };
+        };
+
+        // Mark the funds as unavailable while the transfer is pending.
+        let transferId = pendingTransfers.add(amount);
+
+        // Attempt the transfer, reverting if it fails.
+        let result = try {
+            let transfer = await ledger.transfer(transferArgs);
+            switch (transfer) {
+                case (#Ok(block)) {
+                    pendingTransfers.success(transferId);
+                    #ok(block)
+                };
+                case (#Err(#InsufficientFunds{})) {
+                    // Not enough ICP in the contract
+                    pendingTransfers.failure(transferId);
+                    failure();
+                    #err(#InsufficientLiquidity)
+                };
+                case (#Err(err)) {
+                    pendingTransfers.failure(transferId);
+                    failure();
+                    #err(#TransferError(err))
+                };
+            }
+        } catch (error) {
+            pendingTransfers.failure(transferId);
+            failure();
+            #err(#Other(Error.message(error)))
+        };
+
+        // Queue a balance refresh.
+        ignore refreshAvailableBalance();
+        result
+    };
+
+
+  /////////////////////////////////////////////////////////////////////////////
 
     // List all withdrawals for a user.
     // public shared(msg) func listWithdrawals(user: Principal) : async [Withdrawals.Withdrawal] {
