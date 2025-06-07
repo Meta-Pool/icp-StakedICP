@@ -401,6 +401,10 @@ module {
 
         public func completeWithdrawal_account(user: Account, amount: Nat64, to: NNS.AccountIdentifier): Result.Result<WithdrawalCompletion, WithdrawalsError> {
             let now = Time.now();
+            let subaccount = switch (user.subaccount){
+                case null {nullBlob};
+                case (? subaccount ) {subaccount};
+            };
 
             // Figure out which available withdrawals we're disbursing
             var remaining : Nat64 = amount;
@@ -441,7 +445,7 @@ module {
             #ok({
                 transferArgs = {
                     memo : Nat64    = 0;
-                    from_subaccount = null;
+                    from_subaccount = ?Blob.toArray(subaccount);
                     to              = Blob.toArray(to);
                     amount          = { e8s = amount - icpFee };
                     fee             = { e8s = icpFee };
