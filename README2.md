@@ -56,6 +56,7 @@ hnwvc-lyaaa-aaaal-aaf6q-cai
 
 # Candid UI
 https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app/?id=hnwvc-lyaaa-aaaal-aaf6q-cai
+https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.ic0.app/?id=qfr6e-biaaa-aaaak-qafuq-cai #Token
 
 $ dfx canister call token balanceOf '(principal "hnwvc-lyaaa-aaaal-aaf6q-cai")' --ic
 zhfn3-haobh-mejz2-otnmz-sa6wp-6ya5h-qatef-zy2i4-ec736-7jqu5-pqe

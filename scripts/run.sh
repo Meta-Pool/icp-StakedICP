@@ -21,6 +21,9 @@ echo
 echo == Create Minting Account.
 echo
 
+# 🔐 SAFE PRIVATE KEY FOR MINTER ACCOUNT
+# It's the local icp nns test account,
+# from here: https://hwvjt-wqaaa-aaaam-qadra-cai.ic0.app/docs/current/developer-docs/integrations/sns/get-sns/local-testing
 if (dfx identity list | grep minter 2>&1 >/dev/null) ; then
     echo "minter account already exists" >&2
 else
