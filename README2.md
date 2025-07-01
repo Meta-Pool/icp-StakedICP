@@ -20,7 +20,9 @@ dfx canister call deposits withdrawalsTotal
 
 dfx canister call deposits createWithdrawal '(record {owner=principal "hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe"}, 87_498_125)'
 
+## 🏧 Check the account (principal) the pending withdrawals.
 dfx canister call deposits listWithdrawals '(principal "hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe")'
+dfx canister call deposits listWithdrawals '(principal "xbnmn-mzz2o-aauml-hetit-srv4z-aa2vi-vpvrg-d4zfb-7yer6-wfyuy-qae")' --ic
 
 dfx canister call deposits completeWithdrawal '(principal "hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe", 1_399_970_000, principal "a63dq-6k6fh-xc2im-ahqkq-thu3y-ai27f-rgh2u-s5xxy-yohon-te4ur-nqe")'
 completeWithdrawal(user: Principal, amount: Nat64, to: Text)
@@ -40,7 +42,7 @@ dfx canister call deposits addOwner '(principal "u6b6i-yhv3z-i52d6-w2gny-u2itc-z
 
 
 
-### IMPORTANT 
+### IMPORTANT to upgrade the logic of the deposits canister. 
 ./scripts/deploy.sh ic upgrade deposits
 ```
 
