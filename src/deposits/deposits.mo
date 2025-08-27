@@ -20,6 +20,7 @@ import Result "mo:base/Result";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
 import TrieMap "mo:base/TrieMap";
+import Nat8 "mo:base/Nat8";
 
 import Daily        "./Daily";
 import ApplyInterest "./Daily/ApplyInterest";
@@ -426,6 +427,37 @@ shared(init_msg) actor class Deposits(args: {
         NNS.accountIdToText(NNS.accountIdFromPrincipal(Principal.fromActor(this), NNS.principalToSubaccount(msg.caller)));
     };
 
+    //////////////////////////////// for subaccount functions /////////////////////////////
+
+    private func accountToSubaccount(account: Account.Account): Blob {
+        let ownerToSubaccount = NNS.principalToSubaccount(account.owner);
+        switch(account.subaccount) {
+            case (null) { return ownerToSubaccount};
+            case (?subaccount) { 
+                let a1 = Blob.toArray(ownerToSubaccount);
+                let a2 = Blob.toArray(subaccount);
+                let combined = Array.tabulate<Nat8>(
+                    32,
+                    func(i) {
+                        Nat8.fromNat((Nat8.toNat(a1[i]) + Nat8.toNat(a2[i])) % 256)
+                    }
+                );
+                Blob.fromArray(combined)
+            };
+        }
+    };
+
+    public shared query(msg) func getDepositAddressForSubaccount(subaccount: ?Blob): async Text {
+        let userSubaccount = accountToSubaccount({ owner = msg.caller; subaccount});
+        NNS.accountIdToText(NNS.accountIdFromPrincipal(Principal.fromActor(this), userSubaccount));
+    };
+
+    public shared ({ caller }) func depositIcpForSubaccount(subaccount: Blob): async DepositReceipt{
+        await doDepositIcpFor(caller, ?subaccount);
+    };
+
+    ////////////////////////////////////////////////////////////////////////////////////
+
     // Same as getDepositAddress, but allows the canister owner to find it for
     // a specific user.
     public shared query(msg) func getDepositAddressFor(user: Principal): async Text {
@@ -465,19 +497,20 @@ shared(init_msg) actor class Deposits(args: {
     // After the user transfers their ICP to their depositAddress, process the
     // deposit, be minting the tokens.
     public shared(msg) func depositIcp(): async DepositReceipt {
-        await doDepositIcpFor(msg.caller);
+        await doDepositIcpFor(msg.caller, null);
     };
 
     // After the user transfers their ICP to their depositAddress, process the
     // deposit, be minting the tokens.
     public shared(msg) func depositIcpFor(user: Principal): async DepositReceipt {
         owners.require(msg.caller);
-        await doDepositIcpFor(user)
+        await doDepositIcpFor(user, null)
     };
 
-    private func doDepositIcpFor(user: Principal): async DepositReceipt {
+    private func doDepositIcpFor(user: Principal, _subaccount: ?Blob): async DepositReceipt {
         // Calculate target subaccount
-        let subaccount = NNS.principalToSubaccount(user);
+        // let subaccount = NNS.principalToSubaccount(user);
+        let subaccount = accountToSubaccount({ owner = user; subaccount = _subaccount });
         let sourceAccount = NNS.accountIdFromPrincipal(Principal.fromActor(this), subaccount);
 
         // Check ledger for value
@@ -534,7 +567,7 @@ shared(init_msg) actor class Deposits(args: {
         // Mint the new tokens
         Debug.print("[Referrals.convert] user: " # debug_show(user));
         referralTracker.convert(user, ?now);
-        let userAccount = {owner=user; subaccount=null};
+        let userAccount = {owner=user; subaccount= ?subaccount};
         ignore queueMint(userAccount, toMintE8s);
         ignore flushMint(userAccount);
 
@@ -814,7 +847,14 @@ shared(init_msg) actor class Deposits(args: {
             return #err(#InsufficientLiquidity);
         };
 
-        return #ok(withdrawals.createWithdrawal(user.owner, toUnlockE8s, delay));
+        // return #ok(withdrawals.createWithdrawal(user.owner, toUnlockE8s, delay));
+        return #ok(
+            if(user.subaccount == null){
+                    withdrawals.createWithdrawal(user.owner, toUnlockE8s, delay)
+                } else {
+                    {withdrawals.createWithdrawal_account(user, toUnlockE8s, delay) with user = msg.caller}
+                }
+            )
     };
 
     // Complete withdrawal(s), transferring the ready amount to the
@@ -895,6 +935,95 @@ shared(init_msg) actor class Deposits(args: {
 
         result
     };
+
+  ///////////////// Complete Withdrawal for account ///////////////////////////
+
+    type Account = {owner: Principal; subaccount: ?Blob};
+
+    public shared(msg) func completeWithdrawal_account(account: Account, amount: Nat64, to: Text): async Withdrawals.PayoutResult {
+        let user = account.owner;
+        let subaccount = switch (account.subaccount) {
+            case null {NNS.defaultSubaccount()};
+            case (?subaccount) {subaccount};
+        };
+
+        if (msg.caller != user) {
+            owners.require(msg.caller);
+        };
+
+        // See if we got a valid address to send to.
+        //
+        // Try to parse text as an address or a principal. If a principal, return
+        // the default subaccount address for that principal.
+        let toAddress = switch (NNS.accountIdFromText(to)) {
+            case (#err(_)) {
+                // Try to parse as a principal
+                try {
+                    NNS.accountIdFromPrincipal(Principal.fromText(to), subaccount)
+                } catch (error) {
+                    return #err(#InvalidAddress);
+                };
+            };
+            case (#ok(toAddress)) {
+                if (NNS.validateAccountIdentifier(toAddress)) {
+                    toAddress
+                } else {
+                    return #err(#InvalidAddress);
+                }
+            };
+        };
+
+        // Check we think we have enough cash available to fulfill this.
+        // We can't use _availableBalance here, because it subtracts out the
+        // withdrawals.reservedICP, which is what we actually want to use for
+        // this fulfillment.
+        if (Nat64.min(cachedLedgerBalanceE8s, withdrawals.reservedIcp()) < amount + pendingTransfers.reservedIcp()) {
+            return #err(#InsufficientLiquidity);
+        };
+
+
+        // Mark withdrawals as complete, and the balances as "disbursed"
+        let {transferArgs; failure} = switch (withdrawals.completeWithdrawal(user, amount, toAddress)) {
+            case (#err(err)) { return #err(err); };
+            case (#ok(a)) { a };
+        };
+
+        // Mark the funds as unavailable while the transfer is pending.
+        let transferId = pendingTransfers.add(amount);
+
+        // Attempt the transfer, reverting if it fails.
+        let result = try {
+            let transfer = await ledger.transfer(transferArgs);
+            switch (transfer) {
+                case (#Ok(block)) {
+                    pendingTransfers.success(transferId);
+                    #ok(block)
+                };
+                case (#Err(#InsufficientFunds{})) {
+                    // Not enough ICP in the contract
+                    pendingTransfers.failure(transferId);
+                    failure();
+                    #err(#InsufficientLiquidity)
+                };
+                case (#Err(err)) {
+                    pendingTransfers.failure(transferId);
+                    failure();
+                    #err(#TransferError(err))
+                };
+            }
+        } catch (error) {
+            pendingTransfers.failure(transferId);
+            failure();
+            #err(#Other(Error.message(error)))
+        };
+
+        // Queue a balance refresh.
+        ignore refreshAvailableBalance();
+        result
+    };
+
+
+  /////////////////////////////////////////////////////////////////////////////
 
     // List all withdrawals for a user.
     // public shared(msg) func listWithdrawals(user: Principal) : async [Withdrawals.Withdrawal] {
