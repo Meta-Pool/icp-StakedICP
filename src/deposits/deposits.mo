@@ -127,6 +127,25 @@ shared(init_msg) actor class Deposits(args: {
         #Err: TxReceiptError;
     };
 
+    // ICRC‑21 consent request payload
+    type ConsentMessageRequest = {
+        method               : Text;
+        arg                  : Blob.Blob;
+        consent_preferences  : { language: Text };
+    };
+
+    // ICRC‑21 consent response payload
+    type ConsentMessageOk = {
+        consent_message : Text;
+        language        : Text;
+    };
+
+    // Variant that wallets expect: either Ok or Err
+    type ConsentInfo = {
+        #Ok : ConsentMessageOk;
+        #Err: Text;
+    };
+
     public type Neuron = {
         id : NeuronId;
         accountId : NNS.AccountIdentifier;
@@ -147,6 +166,19 @@ shared(init_msg) actor class Deposits(args: {
     /// Declining anonymous calls.
     system func inspect({ caller : Principal }) : Bool {
         not (Principal.isAnonymous(caller));
+    };
+
+    // ===== ICRC‑21 =====
+
+    public shared(msg) func icrc21_canister_call_consent_message(req : ConsentMessageRequest) : async ConsentInfo {
+        // Build a fallback message without ever touching `req.arg`
+        let humanMsg = "Approve `" # req.method # "` call";
+
+        // Always return Ok
+        #Ok {
+            consent_message = humanMsg;
+            language        = "en-US";
+        }
     };
 
     // ===== OWNER FUNCTIONS =====
