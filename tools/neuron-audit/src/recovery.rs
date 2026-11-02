@@ -188,7 +188,7 @@ pub fn payload_sha256(bytes: &[u8]) -> String {
 
 // ---------- generic Candid inspection (robust to unknown variants) ----------
 
-fn field<'a>(v: &'a IDLValue, name: &str) -> Option<&'a IDLValue> {
+pub(crate) fn field<'a>(v: &'a IDLValue, name: &str) -> Option<&'a IDLValue> {
     match v {
         IDLValue::Record(fs) => fs
             .iter()
@@ -198,7 +198,7 @@ fn field<'a>(v: &'a IDLValue, name: &str) -> Option<&'a IDLValue> {
     }
 }
 
-fn unopt(v: &IDLValue) -> Option<&IDLValue> {
+pub(crate) fn unopt(v: &IDLValue) -> Option<&IDLValue> {
     match v {
         IDLValue::Opt(b) => Some(&**b),
         _ => None,
@@ -213,7 +213,7 @@ fn as_u64(v: &IDLValue) -> Option<u64> {
     }
 }
 
-fn as_bytes(v: &IDLValue) -> Option<Vec<u8>> {
+pub(crate) fn as_bytes(v: &IDLValue) -> Option<Vec<u8>> {
     match v {
         IDLValue::Blob(b) => Some(b.clone()),
         IDLValue::Vec(items) => items
@@ -412,7 +412,7 @@ struct Tokens {
     e8s: u64,
 }
 
-async fn ledger_balance(agent: &Agent, ledger: &Principal, account_hex: &str) -> Result<u64> {
+pub(crate) async fn ledger_balance(agent: &Agent, ledger: &Principal, account_hex: &str) -> Result<u64> {
     let bytes = agent
         .query(ledger, "account_balance_dfx")
         .with_arg(candid::encode_one(BalanceArgs {
@@ -424,7 +424,7 @@ async fn ledger_balance(agent: &Agent, ledger: &Principal, account_hex: &str) ->
     Ok(candid::decode_one::<Tokens>(&bytes)?.e8s)
 }
 
-async fn ledger_block(agent: &Agent, ledger: &Principal, height: u64) -> Result<BlockLookup> {
+pub(crate) async fn ledger_block(agent: &Agent, ledger: &Principal, height: u64) -> Result<BlockLookup> {
     #[derive(CandidType)]
     struct Args {
         start: u64,

@@ -7,6 +7,12 @@
 
 mod audit;
 mod control;
+mod deposit;
+mod deposit_manifest;
+// Compiled from the recovery canister's source so constants and wire types cannot drift.
+#[allow(dead_code)]
+#[path = "../recovery-canister/src/types.rs"]
+mod recovery_types;
 mod dissolve;
 mod governance;
 mod history;
@@ -101,6 +107,11 @@ struct ControlOpts {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Auditable recovery of liquid ICP from the `deposits` canister (status/prepare/verify/install/transfer/reconcile).
+    Deposit {
+        #[command(subcommand)]
+        command: deposit::DepositCommand,
+    },
     /// Controlled StartDissolving workflow (plan is read-only; writes require --execute).
     Dissolve {
         #[command(subcommand)]
@@ -432,6 +443,7 @@ async fn run() -> Result<bool> {
             write_reports(&opts)?;
             Ok(true)
         }
+        Command::Deposit { command } => deposit::run(command).await,
         Command::Dissolve { command } => dissolve_cmd(command).await,
     }
 }

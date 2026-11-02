@@ -1,0 +1,69 @@
+// Interface of the recovery canister. There is intentionally no recipient argument.
+type TransferRequest = record {
+  expected_operation_id : nat64;
+  amount_e8s : nat64;
+  expected_fee_e8s : nat64;
+  manifest_tag : blob;
+};
+type TransferOk = record { operation_id : nat64; block_index : nat; duplicate : bool };
+type LedgerTransferError = variant {
+  BadFee : record { expected_fee : nat };
+  BadBurn : record { min_burn_amount : nat };
+  InsufficientFunds : record { balance : nat };
+  TooOld;
+  CreatedInFuture : record { ledger_time : nat64 };
+  TemporarilyUnavailable;
+  Duplicate : record { duplicate_of : nat };
+  GenericError : record { error_code : nat; message : text };
+};
+type RecoveryError = variant {
+  Unauthorized;
+  ZeroAmount;
+  InvalidManifestTag;
+  UnexpectedFee : record { expected_e8s : nat64; requested_e8s : nat64 };
+  UnexpectedLedgerFee : record { expected_e8s : nat64; actual_e8s : nat64 };
+  OperationIdMismatch : record { expected_next : nat64; requested : nat64 };
+  OperationLimitReached;
+  Busy;
+  UnresolvedOperation : record { operation_id : nat64 };
+  InsufficientFunds : record { balance_e8s : nat64; required_e8s : nat64 };
+  LedgerQueryFailed : record { message : text };
+  StorageError : record { message : text };
+  Ledger : record { error : LedgerTransferError };
+  Ambiguous : record { operation_id : nat64; message : text };
+  NoPendingOperation;
+  OperationNotPending : record { operation_id : nat64 };
+  RetryWindowExpired : record { operation_id : nat64; age_nanos : nat64 };
+  AbandonTooEarly : record { operation_id : nat64; remaining_nanos : nat64 };
+};
+type Status = variant {
+  InDoubt : record { last_error : text };
+  Completed : record { block_index : nat; duplicate : bool };
+  Failed : record { reason : text };
+  Abandoned;
+};
+type Operation = record {
+  id : nat64;
+  amount_e8s : nat64;
+  fee_e8s : nat64;
+  created_at_time_nanos : nat64;
+  memo : blob;
+  attempts : nat32;
+  status : Status;
+};
+type State = record { version : nat32; next_operation_id : nat64; operations : vec Operation };
+type ConfigView = record {
+  source_canister : principal;
+  authorized_caller : principal;
+  destination : principal;
+  ledger : principal;
+  fee_e8s : nat64;
+  max_operations : nat64;
+};
+service : () -> {
+  transfer : (TransferRequest) -> (variant { Ok : TransferOk; Err : RecoveryError });
+  retry_pending : (nat64) -> (variant { Ok : TransferOk; Err : RecoveryError });
+  abandon_pending : (nat64) -> (variant { Ok; Err : RecoveryError });
+  get_state : () -> (State) query;
+  get_config : () -> (ConfigView) query;
+}
