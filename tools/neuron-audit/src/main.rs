@@ -175,8 +175,8 @@ enum Command {
         #[command(flatten)]
         opts: ReportOpts,
     },
-    /// EXPLICITLY AUTHORIZED RECOVERY TEST: one `Disburse` of one dissolved neuron to the deposits
-    /// canister's ledger account. Default mode only prepares (anonymous reads, nothing signed).
+    /// EXPLICITLY AUTHORIZED RECOVERY TEST: one `Disburse` of one dissolved neuron to the required
+    /// `--destination` principal's ledger account. Default mode only prepares (anonymous reads, nothing signed).
     RecoverDisburse(Box<recovery::DisburseArgs>),
     /// Offline: reconcile access/control for every neuron in the baseline snapshot (plus the latest
     /// probe, if any) and write control-report.md / control-report.json. Never touches the network.

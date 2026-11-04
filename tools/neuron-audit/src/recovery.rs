@@ -1,5 +1,5 @@
 //! Explicitly authorized recovery test: ONE `Disburse` of a dissolved neuron to the stICP
-//! deposits canister's ICP Ledger account.
+//! caller-supplied destination's default ICP Ledger account (no built-in default destination).
 //!
 //! Safety model:
 //! * default mode is PREPARE: anonymous, read-only queries only; nothing is signed or sent;
@@ -19,7 +19,6 @@ use sha2::{Digest, Sha224, Sha256};
 use std::{fs::OpenOptions, io::Write, path::PathBuf, time::Duration};
 
 pub const LEDGER: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
-pub const DEPOSITS: &str = "hnwvc-lyaaa-aaaal-aaf6q-cai";
 pub const LEDGER_FEE_E8S: u64 = 10_000;
 /// `NeuronInfo.state` value for DISSOLVED.
 const STATE_DISSOLVED: i32 = 3;
@@ -47,8 +46,9 @@ pub struct DisburseArgs {
     pub owner_pem: Option<PathBuf>,
     #[arg(long, default_value = "audit-out")]
     pub out_dir: PathBuf,
-    #[arg(long, default_value = DEPOSITS)]
-    pub deposits: String,
+    /// Principal that receives the ICP (its default-subaccount ICP Ledger account). Required: there is no default.
+    #[arg(long)]
+    pub destination: String,
     #[arg(long, default_value = LEDGER)]
     pub ledger: String,
     #[arg(long, default_value = DEFAULT_SIGNING)]
@@ -470,7 +470,7 @@ fn now_unix() -> u64 {
 pub async fn run(a: DisburseArgs) -> Result<bool> {
     let gov = Principal::from_text(&a.governance).context("invalid --governance")?;
     let ledger = Principal::from_text(&a.ledger).context("invalid --ledger")?;
-    let deposits = Principal::from_text(&a.deposits).context("invalid --deposits")?;
+    let destination = Principal::from_text(&a.destination).context("invalid --destination")?;
     let signing = Principal::from_text(&a.signing).context("invalid --signing")?;
     let owner_principal =
         Principal::from_text(&a.owner_principal).context("invalid --owner-principal")?;
@@ -497,7 +497,7 @@ pub async fn run(a: DisburseArgs) -> Result<bool> {
         }
     };
 
-    let dest = account_id(&deposits, None);
+    let dest = account_id(&destination, None);
     let dest_hex = hex(&dest);
     let anon = Agent::builder().with_url(a.ic_url.clone()).build()?;
     let before = read_state(&anon, &gov, &ledger, neuron_id, &dest_hex).await?;
@@ -511,7 +511,7 @@ pub async fn run(a: DisburseArgs) -> Result<bool> {
     println!("Live state       : {} (state={}), dissolve delay {}s, stake (net of fees) {} ICP, voting power {}",
         crate::governance::state_name(i.state), i.state, i.dissolve_delay_seconds, fmt_e8s(i.stake_e8s.into()), i.voting_power);
     println!("Destination      : ICP Ledger account {dest_hex}");
-    println!("  derived from   : deposits canister {deposits} + default subaccount (same derivation as the legacy Oracle's `account_id`)");
+    println!("  derived from   : principal {destination} + default subaccount (same derivation as `dfx ledger account-id --of-principal`)");
     println!(
         "  live balance   : {} ICP ({} e8s) on ledger {ledger}",
         fmt_e8s(before.dest_balance.into()),
@@ -560,7 +560,7 @@ pub async fn run(a: DisburseArgs) -> Result<bool> {
         ));
     }
     if before.dest_balance == 0 {
-        problems.push("destination account holds no ICP: refusing to treat it as the protocol's reserve account".to_string());
+        println!("WARNING          : destination account currently holds 0 ICP; confirm the principal and account id with the recipient before approving");
     }
     if !problems.is_empty() {
         for p in &problems {
@@ -733,7 +733,7 @@ pub async fn run(a: DisburseArgs) -> Result<bool> {
             );
             println!("Fee in block     : {} e8s ({} ICP)   (paid by the neuron's ledger account on top of the amount)", t.fee_e8s, fmt_e8s(t.fee_e8s.into()));
             println!(
-                "Destination      : block recipient == deposits account {dest_hex}   => MATCH"
+                "Destination      : block recipient == destination account {dest_hex}   => MATCH"
             );
         }
         Some((h, BlockCheck::Mismatch { transfer: t, why })) => {
@@ -807,7 +807,7 @@ pub async fn run(a: DisburseArgs) -> Result<bool> {
         "governance": gov.to_text(),
         "neuron_id": neuron_id.to_string(),
         "destination_account_hex": dest_hex,
-        "destination_derivation": format!("deposits canister {deposits}, default subaccount"),
+        "destination_derivation": format!("principal {destination}, default subaccount"),
         "amount_requested_e8s": a.amount_e8s,
         "ledger_fee_e8s": LEDGER_FEE_E8S,
         "payload_hex": hex(&payload),
@@ -901,7 +901,7 @@ pub fn check_block(
             let mut why = vec![];
             if t.to_hex != dest_hex {
                 why.push(format!(
-                    "recipient {} is not the deposits account",
+                    "recipient {} is not the destination account",
                     t.to_hex
                 ));
             }
@@ -949,7 +949,7 @@ pub fn verdict_explanation(
     transport_kind: Option<&str>,
 ) -> String {
     match v {
-        Verdict::Success => "Governance accepted the Disburse AND the ICP Ledger block at the returned index is a Transfer of exactly the requested amount to the deposits account. The Oracle principal is the controller of this neuron.".into(),
+        Verdict::Success => "Governance accepted the Disburse AND the ICP Ledger block at the returned index is a Transfer of exactly the requested amount to the destination account. The Oracle principal is the controller of this neuron.".into(),
         Verdict::RejectedNotAuthorized => "Governance authenticated the Oracle's signature and refused: the Oracle is not the controller of this neuron (hotkeys cannot disburse). No ICP moved. This proves nothing about who the controller is, nor about other neurons.".into(),
         Verdict::FailedGovernanceError => format!("Governance rejected the command for a non-authorization reason. No ICP moved per Governance. {} Authority is NOT established either way.", o.map(interpret).unwrap_or_default()),
         Verdict::Pending => "Governance replied that the Disburse was accepted, but the Ledger block could not be read yet. Do NOT treat this as success until the block is verified independently (commands below).".into(),
@@ -1090,7 +1090,7 @@ pub fn expectation_notes(
     } else if dd == 0 {
         "Deposits balance did NOT change: the transfer did not (yet) land, or something offset it. Do not assume it moved.".into()
     } else {
-        format!("Deposits balance changed by {dd:+} e8s, not the requested {requested} e8s: MISMATCH. Other deposits or withdrawals on that account in the same window can explain it; rely on the ledger block, not the balance.")
+        format!("Destination balance changed by {dd:+} e8s, not the requested {requested} e8s: MISMATCH. Other deposits or withdrawals on that account in the same window can explain it; rely on the ledger block, not the balance.")
     });
     n.push(if nd == -req {
         "Neuron net stake fell by exactly the requested amount (the fee was not deducted from the cached stake).".into()
@@ -1192,8 +1192,8 @@ mod tests {
     }
 
     #[test]
-    fn deposits_account_id_matches_independent_python_computation() {
-        let p = Principal::from_text(DEPOSITS).unwrap();
+    fn destination_account_id_matches_independent_python_computation() {
+        let p = Principal::from_text("hnwvc-lyaaa-aaaal-aaf6q-cai").unwrap();
         assert_eq!(hex(p.as_slice()), "000000000160017d0101");
         assert_eq!(
             hex(&account_id(&p, None)),
@@ -1440,7 +1440,7 @@ mod tests {
         else {
             panic!()
         };
-        assert!(why.contains("not the deposits account"));
+        assert!(why.contains("not the destination account"));
         assert!(matches!(
             check_block(Ok(BlockLookup::Archived), DEST, 5),
             BlockCheck::Unavailable(_)
