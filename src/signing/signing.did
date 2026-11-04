@@ -1,6 +1,7 @@
 type InitArgs = record {
     owners : vec principal;
     key_id : text;
+    metrics_canister : opt principal;
 };
 
 type Metric = 
@@ -22,4 +23,8 @@ service : (InitArgs) -> {
   sign : (blob) -> (variant { Ok: record { signature: blob; }; Err: text });
 
    metrics: () -> (vec Metric);
+  get_all_owners : () -> (vec principal) query;
+  add_owner : (principal) -> ();
+  remove_owner : (principal) -> ();
+  set_metrics : (opt principal) -> ();
 }

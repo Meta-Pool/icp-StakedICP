@@ -24,3 +24,47 @@ src/declarations.tar
 
 # rust stuff
 target/
+
+# --- Secrets and credentials (never commit) ---
+*.pem
+*.key
+*.p12
+*.pfx
+id_ed25519*
+id_ecdsa*
+identity.pem
+seedphrase*
+seed-*
+*mnemonic*
+.env
+.env.*
+!.env.example
+.envrc.local
+*.secret
+*.secrets
+
+# --- Neuron audit / recovery: generated output and operational records ---
+/tools/neuron-audit/audit-in/
+/tools/neuron-audit/audit-out/
+/tools/neuron-audit/target/
+/recovery/2026-*/
+/recovery/neuron-inspector/
+/recovery/**/journal/
+/recovery/**/*.intent.json
+/recovery/**/*.result.json
+**/audit-out/
+**/dissolve/journal/
+*.intent.json
+*.result.json
+*.reconciled.json
+
+# --- Rust build artifacts ---
+**/target/
+**/*.rs.bk
+
+# --- Editor / temp files ---
+*.swp
+*.swo
+*.tmp
+*.log
+.#*

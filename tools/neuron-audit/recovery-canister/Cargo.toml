@@ -1,0 +1,38 @@
+[package]
+name = "recovery-canister"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Minimal single-purpose canister: moves liquid ICP from its own default account to one fixed recipient"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["canister"]
+# The IC entry points. Disabled when the crate is only used for its types and constants.
+canister = ["dep:ic-cdk"]
+
+[dependencies]
+candid = "0.10"
+ic-cdk = { version = "0.20", optional = true }
+icrc-ledger-types = "0.2"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+futures = "0.3"
+candid_parser = "0.2"
+pocket-ic = "9.0.2"
+ic-ledger-types = "0.16"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false
+strip = true
+
+# Standalone crate: neither part of the legacy workspace nor of neuron-audit's.
+[workspace]
